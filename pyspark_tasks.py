@@ -2,6 +2,7 @@ from pyspark import SparkConf
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
+from pyspark.sql.window import Window
 
 conf = SparkConf() \
     .set("spark.pyspark.python", r"C:\Users\huber\Desktop\Projects\PySpark_Pandas_Tasks\venv\Scripts\python.exe") \
@@ -22,7 +23,7 @@ df = spark.createDataFrame(data, columns)
 df = df.withColumn('timestamp', col('timestamp').cast(DateType()))
 df.printSchema()
 
-df.orderBy(df.timestamp.desc()).dropDuplicates(["customer_id"]).show() #solution 1
+# df.orderBy(df.timestamp.desc()).dropDuplicates(["customer_id"]).show() #solution 1
 # df.orderBy(df['timestamp'], ascending = [0]).dropDuplicates(["customer_id"]).show() # solution 2
 # df.orderBy(df['timestamp'], ascending = [False]).dropDuplicates(["customer_id"]).show() # solution 3
 
@@ -57,3 +58,24 @@ FROM ranked
 WHERE rank = 1
 """)
 # result.show()
+
+#solution 6  - Using PySpark's DataFrame API (groupBy and agg)
+latest_timestamps_df = df.groupBy("customer_id").agg(
+    {"timestamp": "max"}
+).withColumnRenamed("max(timestamp)", "latest_timestamp")
+
+final_df = df.join(
+    latest_timestamps_df,
+    (df.customer_id == latest_timestamps_df.customer_id) & 
+    (df.timestamp == latest_timestamps_df["latest_timestamp"]),
+    "inner"
+).select(df["*"])
+
+# final_df.show()
+
+#solution 7 - Using Window Functions with PySpark DataFrame API
+window_spec = Window.partitionBy("customer_id").orderBy(desc("timestamp"))
+
+df_with_rank = df.withColumn("rank", row_number().over(window_spec))
+latest_records_df = df_with_rank.filter(col("rank") == 1).drop("rank")
+# latest_records_df.show()
