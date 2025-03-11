@@ -79,3 +79,37 @@ window_spec = Window.partitionBy("customer_id").orderBy(desc("timestamp"))
 df_with_rank = df.withColumn("rank", row_number().over(window_spec))
 latest_records_df = df_with_rank.filter(col("rank") == 1).drop("rank")
 # latest_records_df.show()
+'''
+
+Q2 You need to calculate the total number of actions performed by users in a system.
+How would you calculate the top 5 most active users based on this informations.
+'''
+data = [("user1", 5), ("user2", 8), ("user3", 2), ("user4", 10), ("user2", 3), ("user6", 8), ("user3", 6), ("user7", 10)]
+columns = ["user_id", "actions"]
+
+df = spark.createDataFrame(data,columns)
+# df.show()
+
+#solution1 
+df.groupBy('user_id') \
+  .agg(sum('actions').alias('actions')) \
+  .orderBy('actions', ascending=False) \
+  .limit(5) \
+  .show()
+
+#solution2
+df.groupBy('user_id').sum('actions') \
+  .withColumnRenamed('sum(actions)', 'actions') \
+  .orderBy('actions', ascending=False) \
+  .limit(5) \
+  .show()
+
+#solution3
+df.createOrReplaceTempView("user_actions")
+spark.sql("""
+  SELECT user_id, SUM(actions) AS actions
+  FROM user_actions
+  GROUP BY user_id
+  ORDER BY actions DESC
+  LIMIT 5
+""").show()
